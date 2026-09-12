@@ -83,6 +83,7 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid)
     new_ptr[(rows - 1) * cols + j] = old_ptr[(rows - 1) * cols + j];
   }
 
+#pragma omp parallel for schedule(static)
   for (size_t i = 1; i < rows - 1; ++i)
   {
 #pragma omp simd aligned(old_ptr, new_ptr : 64)
