@@ -58,16 +58,21 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid)
 {
   auto rows = old_grid.rows(), cols = old_grid.cols();
 
+  // handle boundary conditions separately to avoid branching in loop
   for (auto i = 0; i < rows; ++i)
-    for (auto j = 0; j < cols; ++j)
-    {
-      auto val = old_grid(i, j);
-      if (i == 0 || i == rows - 1 || j == 0 || j == cols - 1)
-      {
-        new_grid(i, j) = val;
-        continue;
-      }
+  {
+    new_grid(i, 0) = old_grid(i, 0);
+    new_grid(i, cols - 1) = old_grid(i, cols - 1);
+  }
+  for (auto j = 0; j < cols; ++j)
+  {
+    new_grid(j, 0) = old_grid(j, 0);
+    new_grid(j, rows - 1) = old_grid(j, rows - 1);
+  }
 
+  for (auto i = 1; i < rows - 1; ++i)
+    for (auto j = 1; j < cols - 1; ++j)
+    {
       // weighted avg provided in problem statement
       new_grid(i, j) = 0.5 * old_grid(i, j) +
                        0.125 * (old_grid(i - 1, j) + old_grid(i + 1, j) +
