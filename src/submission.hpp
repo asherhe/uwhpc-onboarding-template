@@ -20,6 +20,10 @@ private:
 public:
   Grid(std::size_t rows, std::size_t cols);
 
+  // getters for grid dimensions
+  std::size_t rows() const { return rows_; }
+  std::size_t cols() const { return cols_; }
+
   // value at row i, col j
   double &operator()(std::size_t i, std::size_t j);
   double operator()(std::size_t i, std::size_t j) const;
