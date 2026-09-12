@@ -8,10 +8,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_executable(uwhpc_benchmark
-    bench/main.cpp
-    src/submission.cpp
-)
+add_executable(uwhpc_benchmark bench/main.cpp)
 target_include_directories(uwhpc_benchmark PRIVATE src)
 
 # OpenMP is optional for local builds (stock macOS Clang, for example, ships
