@@ -13,8 +13,8 @@ using namespace std;
 class Grid
 {
 private:
-  // grid elements
-  vector<double> grid_;
+  // grid elements, 64-byte aligned allocation
+  alignas(64) vector<double> grid_;
 
   size_t rows_;
   size_t cols_;
@@ -66,13 +66,17 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid)
 
   const double *__restrict old_ptr = old_grid.data();
   double *__restrict new_ptr = new_grid.data();
+  old_ptr = static_cast<const double *>(__builtin_assume_aligned(old_ptr, 64));
+  new_ptr = static_cast<double *>(__builtin_assume_aligned(new_ptr, 64));
 
   // handle boundary conditions separately to avoid branching in loop
+#pragma omp simd aligned(old_ptr, new_ptr : 64)
   for (size_t i = 0; i < rows; ++i)
   {
     new_ptr[i * cols + 0] = old_ptr[i * cols + 0];
     new_ptr[i * cols + cols - 1] = old_ptr[i * cols + cols - 1];
   }
+#pragma omp simd aligned(old_ptr, new_ptr : 64)
   for (size_t j = 0; j < cols; ++j)
   {
     new_ptr[j] = old_ptr[j];
@@ -80,6 +84,8 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid)
   }
 
   for (size_t i = 1; i < rows - 1; ++i)
+  {
+#pragma omp simd aligned(old_ptr, new_ptr : 64)
     for (size_t j = 1; j < cols - 1; ++j)
     {
       size_t idx = i * cols + j;
@@ -88,4 +94,5 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid)
                      0.125 * (old_ptr[idx - cols] + old_ptr[idx + cols] +
                               old_ptr[idx - 1] + old_ptr[idx + 1]);
     }
+  }
 }
