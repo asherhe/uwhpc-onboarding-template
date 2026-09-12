@@ -11,8 +11,8 @@
 class Grid
 {
 private:
-  // gird elements
-  std::vector<std::vector<double>> grid_;
+  // grid elements
+  std::vector<double> grid_;
 
   std::size_t rows_;
   std::size_t cols_;
@@ -38,18 +38,18 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid);
 ////////////////////////////
 
 Grid::Grid(std::size_t rows, std::size_t cols)
-    : rows_(rows), cols_(cols), grid_(rows, std::vector(cols, 0.0))
+    : rows_(rows), cols_(cols), grid_(rows * cols, 0.0)
 {
 }
 
 double &Grid::operator()(std::size_t i, std::size_t j)
 {
-  return grid_[i][j];
+  return grid_[i * cols_ + j];
 }
 
 double Grid::operator()(std::size_t i, std::size_t j) const
 {
-  return grid_[i][j];
+  return grid_[i * cols_ + j];
 }
 
 // Apply the five-point stencil over all interior points, copying the boundary
