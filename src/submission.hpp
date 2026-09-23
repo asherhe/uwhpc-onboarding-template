@@ -10,58 +10,37 @@ using namespace std;
 // The evaluation harness uses operator() to set initial conditions and to read
 // results; it never touches your internal storage. Keep this interface,
 // everything else is yours.
-class Grid
-{
+class Grid {
 private:
   // grid elements, 64-byte aligned allocation
   alignas(64) vector<double> grid_;
 
   size_t rows_;
   size_t cols_;
+  // column count rounded up to multiple of 8. ensures grid_ column sections are
+  // stored as multiples of 8 * sizeof(double) = 64 bytes for simd
+  size_t padded_cols_;
 
 public:
-  Grid(size_t rows, size_t cols);
+  Grid(size_t rows, size_t cols)
+      : rows_(rows), cols_(cols), grid_(rows * cols, 0.0) {}
 
   // getters for grid dimensions
   size_t rows() const { return rows_; }
   size_t cols() const { return cols_; }
 
-  // expose pointer to grid data vector
+  // expose pointer to grid data array
   double *data() { return grid_.data(); }
   const double *data() const { return grid_.data(); }
 
   // value at row i, col j
-  double &operator()(size_t i, size_t j);
-  double operator()(size_t i, size_t j) const;
+  double &operator()(size_t i, size_t j) { return grid_[i * cols_ + j]; }
+  double operator()(size_t i, size_t j) const { return grid_[i * cols_ + j]; }
 };
 
 // Apply the five-point stencil over all interior points, copying the boundary
 // values unchanged from old_grid to new_grid. Implement your solution here.
-void apply_stencil(const Grid &old_grid, Grid &new_grid);
-
-////////////////////////////
-// implementation time!!! //
-////////////////////////////
-
-Grid::Grid(size_t rows, size_t cols)
-    : rows_(rows), cols_(cols), grid_(rows * cols, 0.0)
-{
-}
-
-double &Grid::operator()(size_t i, size_t j)
-{
-  return grid_[i * cols_ + j];
-}
-
-double Grid::operator()(size_t i, size_t j) const
-{
-  return grid_[i * cols_ + j];
-}
-
-// Apply the five-point stencil over all interior points, copying the boundary
-// values unchanged from old_grid to new_grid. Implement your solution here.
-void apply_stencil(const Grid &old_grid, Grid &new_grid)
-{
+void apply_stencil(const Grid &old_grid, Grid &new_grid) {
   auto rows = old_grid.rows(), cols = old_grid.cols();
 
   const double *__restrict old_ptr = old_grid.data();
@@ -71,24 +50,20 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid)
 
   // handle boundary conditions separately to avoid branching in loop
 #pragma omp simd aligned(old_ptr, new_ptr : 64)
-  for (size_t i = 0; i < rows; ++i)
-  {
+  for (size_t i = 0; i < rows; ++i) {
     new_ptr[i * cols + 0] = old_ptr[i * cols + 0];
     new_ptr[i * cols + cols - 1] = old_ptr[i * cols + cols - 1];
   }
 #pragma omp simd aligned(old_ptr, new_ptr : 64)
-  for (size_t j = 0; j < cols; ++j)
-  {
+  for (size_t j = 0; j < cols; ++j) {
     new_ptr[j] = old_ptr[j];
     new_ptr[(rows - 1) * cols + j] = old_ptr[(rows - 1) * cols + j];
   }
 
 #pragma omp parallel for schedule(static)
-  for (size_t i = 1; i < rows - 1; ++i)
-  {
+  for (size_t i = 1; i < rows - 1; ++i) {
 #pragma omp simd aligned(old_ptr, new_ptr : 64)
-    for (size_t j = 1; j < cols - 1; ++j)
-    {
+    for (size_t j = 1; j < cols - 1; ++j) {
       size_t idx = i * cols + j;
       // weighted avg provided in problem statement
       new_ptr[idx] = 0.5 * old_ptr[idx] +
