@@ -47,7 +47,7 @@ public:
   }
   Grid &operator=(Grid &&other) noexcept {
     if (this != &other) {
-      ::operator delete[](grid_, std::align_val_t{64}); // Free existing memory
+      ::operator delete[](grid_, align_val_t{64}); // free existing memory
 
       rows_ = other.rows_;
       cols_ = other.cols_;
@@ -100,16 +100,23 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
     new_ptr[last_row + j] = old_ptr[last_row + j];
   }
 
-#pragma omp parallel for schedule(static)
-  for (size_t i = 1; i < rows - 1; ++i) {
+  // teh execution of the main stencil loop is divided into blocks. this ensures
+  // that most grid retrieval operations can remain in cache for its neighbors.
+  const size_t BLOCK_I = 32, BLOCK_J = 64;
+
+#pragma omp parallel for collapse(2) schedule(static)
+  for (size_t i_blk = 1; i_blk < rows - 1; i_blk += BLOCK_I)
+    for (size_t j_blk = 1; j_blk < cols - 1; j_blk += BLOCK_J)
+      // not collapsed because we want each block to run on one thread
+      for (size_t i = i_blk; i < min(i_blk + BLOCK_I, rows - 1); ++i) {
 #pragma omp simd
-    for (size_t j = 1; j < cols - 1; ++j) {
-      size_t idx = i * padded_cols + j;
-      // weighted avg provided in problem statement
-      new_ptr[idx] =
-          0.5 * old_ptr[idx] +
-          0.125 * (old_ptr[idx - padded_cols] + old_ptr[idx + padded_cols] +
-                   old_ptr[idx - 1] + old_ptr[idx + 1]);
-    }
-  }
+        for (size_t j = j_blk; j < min(j_blk + BLOCK_J, cols - 1); ++j) {
+          size_t idx = i * padded_cols + j;
+          // weighted avg provided in problem statement
+          new_ptr[idx] =
+              0.5 * old_ptr[idx] +
+              0.125 * (old_ptr[idx - padded_cols] + old_ptr[idx + padded_cols] +
+                       old_ptr[idx - 1] + old_ptr[idx + 1]);
+        }
+      }
 }

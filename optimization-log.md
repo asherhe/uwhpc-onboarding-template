@@ -30,3 +30,4 @@ To ensure consistent results, I used Quick CPU with the `High performance` power
 | `d1d3dc5f` | Use SIMD in loops | 1.010 |
 | `eefbd6eb` | Multithread main stencil loop | 1.977 |
 | `43783a1f` | Replace std::vector with array | 1.919 |
+| this commit | Divide main loop into blocks | 1.812 |
