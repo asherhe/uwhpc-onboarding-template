@@ -32,6 +32,36 @@ public:
 
   ~Grid() { ::operator delete[](grid_, align_val_t(64)); }
 
+  // disable copy construction, copy assignment
+  Grid(const Grid &) = delete;
+  Grid &operator=(const Grid &) = delete;
+
+  // move operations (used by std::swap that is called in main.cpp)
+  Grid(Grid &&other) noexcept
+      : rows_(other.rows_), cols_(other.cols_),
+        padded_cols_(other.padded_cols_), grid_(other.grid_) {
+    other.grid_ = nullptr;
+    other.rows_ = 0;
+    other.cols_ = 0;
+    other.padded_cols_ = 0;
+  }
+  Grid &operator=(Grid &&other) noexcept {
+    if (this != &other) {
+      ::operator delete[](grid_, std::align_val_t{64}); // Free existing memory
+
+      rows_ = other.rows_;
+      cols_ = other.cols_;
+      padded_cols_ = other.padded_cols_;
+      grid_ = other.grid_;
+
+      other.grid_ = nullptr;
+      other.rows_ = 0;
+      other.cols_ = 0;
+      other.padded_cols_ = 0;
+    }
+    return *this;
+  }
+
   // getters for grid dimensions
   size_t rows() const { return rows_; }
   size_t cols() const { return cols_; }
