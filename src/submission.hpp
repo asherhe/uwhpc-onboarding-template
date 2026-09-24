@@ -102,7 +102,27 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
 
   // teh execution of the main stencil loop is divided into blocks. this ensures
   // that most grid retrieval operations can remain in cache for its neighbors.
-  const size_t BLOCK_I = 32, BLOCK_J = 64;
+  const size_t BLOCK_I = 8, BLOCK_J = 128;
+
+  // i ran these tests on battery power so scores are slightly worse
+  // apparently running on battery has a bigger impact on my solution than the
+  // reference solution.
+  // BI,  BJ | Score
+  // --------+------
+  // 16,  16 | 1.756
+  // 32,  16 | 1.610
+  // 64,  16 | 1.407
+  // 16,  32 | 1.841
+  // 64,  32 | 1.537
+  // 16,  64 | 1.881
+  //  2,  64 | 1.868
+  //  4,  64 | 1.882
+  //  8,  64 | 1.858
+  // 16,  64 | 1.822
+  //  4, 128 | 1.809
+  //  8, 128 | 1.891 (best)
+  // 16, 128 | 1.813
+  // 16, 256 | 1.767
 
 #pragma omp parallel for collapse(2) schedule(static)
   for (size_t i_blk = 1; i_blk < rows - 1; i_blk += BLOCK_I)
