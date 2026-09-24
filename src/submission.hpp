@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include <cstring>
 #include <vector>
+
 
 using namespace std;
 
@@ -94,11 +96,13 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
   }
 
   const size_t last_row = (rows - 1) * padded_cols;
-#pragma omp simd aligned(old_ptr, new_ptr : 64)
-  for (size_t j = 0; j < cols; ++j) {
-    new_ptr[j] = old_ptr[j];
-    new_ptr[last_row + j] = old_ptr[last_row + j];
-  }
+  // #pragma omp simd aligned(old_ptr, new_ptr : 64)
+  //   for (size_t j = 0; j < cols; ++j) {
+  //     new_ptr[j] = old_ptr[j];
+  //     new_ptr[last_row + j] = old_ptr[last_row + j];
+  //   }
+  memcpy(new_ptr, old_ptr, cols * sizeof(*old_ptr));
+  memcpy(new_ptr + last_row, old_ptr + last_row, cols * sizeof(*old_ptr));
 
 #pragma omp parallel for schedule(static)
   for (size_t i = 1; i < rows - 1; ++i) {

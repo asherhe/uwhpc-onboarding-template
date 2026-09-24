@@ -24,9 +24,11 @@ To ensure consistent results, I used Quick CPU with the `High performance` power
 
 | Commit hash | Changes | Score |
 | - | - | - |
-| `d0605ad1` | Initial implementation | 0.707 |
-| `288f1808` | Separate boundary logic into separate loops | 0.980 |
-| `fc9c7642` | Flatten grid to 1D vector | 1.014 |
-| `d1d3dc5f` | Use SIMD in loops | 1.010 |
-| `eefbd6eb` | Multithread main stencil loop | 1.977 |
-| `43783a1f` | Replace std::vector with array | 1.919 |
+| `d0605ad` | Initial implementation | 0.707 |
+| `288f180` | Separate boundary logic into separate loops | 0.980 |
+| `fc9c764` | Flatten grid to 1D vector | 1.014 |
+| `d1d3dc5` | Use SIMD in loops | 1.010 |
+| `eefbd6e` | Multithread main stencil loop | 1.977 |
+| `43783a1` | Replace std::vector with array | 2.036 |
+| `d85aabe` | Divide main loop into blocks | 2.018 |
+| this commit | Use memcpy in place of row boundary loop | 2.069 |
