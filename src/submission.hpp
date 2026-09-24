@@ -169,7 +169,7 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
     // initial pass: reset all values to zero because values outside the
     // bounding box are skipped. we can count on this working because we know
     // old_grid and new_grid are swapped every timestep
-    memset(new_ptr, 0, rows * stride * sizeof(*new_ptr));
+    // memset(new_ptr, 0, rows * stride * sizeof(*new_ptr));
   }
   bbox.grow(rows, cols);
   new_grid.set_bbox(bbox);
