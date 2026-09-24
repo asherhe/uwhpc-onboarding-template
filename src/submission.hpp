@@ -115,7 +115,11 @@ public:
   }
   bool has_bbox() const { return has_bbox_; }
 
-  double &operator()(size_t i, size_t j) noexcept { return grid_[i * stride_ + j]; }
+  double &operator()(size_t i, size_t j) noexcept {
+    // invalidate bounding box if there is an attempt to modify it
+    has_bbox_ = false;
+    return grid_[i * stride_ + j];
+  }
   double operator()(size_t i, size_t j) const noexcept { return grid_[i * stride_ + j]; }
 
   // determine a bounding box that encloses all nonzero values of the grid
