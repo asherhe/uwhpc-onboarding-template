@@ -34,14 +34,15 @@ private:
 public:
   Grid(size_t rows, size_t cols)
       : rows_(rows), cols_(cols),
-        // round up to multiple of 8 with a bit mask
+        // round up to multiple of 8 via bit mask
         padded_cols_((cols + 7) & ~7),
         grid_(static_cast<double *>(::operator new[](
             rows * padded_cols_ * sizeof(double), align_val_t{64}))) {}
 
   ~Grid() { ::operator delete[](grid_, align_val_t(64)); }
 
-  // disable copy construction, copy assignment
+  // disable copy construction, copy assignment - each grid_ instance should
+  // only be accessed by one Grid at any time.
   Grid(const Grid &) = delete;
   Grid &operator=(const Grid &) = delete;
 
@@ -56,7 +57,8 @@ public:
   }
   Grid &operator=(Grid &&other) noexcept {
     if (this != &other) {
-      ::operator delete[](grid_, std::align_val_t{64}); // Free existing memory
+      // free grid memory about to be replaced
+      ::operator delete[](grid_, std::align_val_t{64});
 
       rows_ = other.rows_;
       cols_ = other.cols_;
@@ -71,16 +73,13 @@ public:
     return *this;
   }
 
-  // getters for grid dimensions
   size_t rows() const { return rows_; }
   size_t cols() const { return cols_; }
   size_t padded_cols() const { return padded_cols_; }
 
-  // expose pointer to grid data array
   double *data() { return grid_; }
   const double *data() const { return grid_; }
 
-  // value at row i, col j
   double &operator()(size_t i, size_t j) { return grid_[i * padded_cols_ + j]; }
   double operator()(size_t i, size_t j) const {
     return grid_[i * padded_cols_ + j];
@@ -103,11 +102,6 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
   }
 
   const size_t last_row = (rows - 1) * padded_cols;
-  // #pragma omp simd aligned(old_ptr, new_ptr : 64)
-  //   for (size_t j = 0; j < cols; ++j) {
-  //     new_ptr[j] = old_ptr[j];
-  //     new_ptr[last_row + j] = old_ptr[last_row + j];
-  //   }
   memcpy(new_ptr, old_ptr, cols * sizeof(*old_ptr));
   memcpy(new_ptr + last_row, old_ptr + last_row, cols * sizeof(*old_ptr));
 
@@ -116,7 +110,6 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
 #pragma omp simd
     for (size_t j = 1; j < cols - 1; ++j) {
       size_t idx = i * padded_cols + j;
-      // weighted avg provided in problem statement
       new_ptr[idx] =
           0.5 * old_ptr[idx] +
           0.125 * (old_ptr[idx - padded_cols] + old_ptr[idx + padded_cols] +
