@@ -31,4 +31,5 @@ To ensure consistent results, I used Quick CPU with the `High performance` power
 | `eefbd6e` | Multithread main stencil loop | 1.977 |
 | `43783a1` | Replace std::vector with array | 2.036 |
 | `d85aabe` | Divide main loop into blocks | 2.018 |
-| this commit | Use memcpy in place of row boundary loop | 2.069 |
+| `b75891a` | Use memcpy in place of row boundary loop | 2.069 |
+| this commit | Cross-platform restrict keyword switching | 2.054 |

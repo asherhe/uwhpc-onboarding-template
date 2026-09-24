@@ -4,8 +4,15 @@
 #include <cstring>
 #include <vector>
 
-
 using namespace std;
+
+#if defined(_MSC_VER)
+#define RESTRICT __restrict
+#elif defined(__GNUC__) || defined(__clang__)
+#define RESTRICT __restrict__
+#else
+#define RESTRICT
+#endif
 
 // Starter Grid for the 2D heat-diffusion problem.
 //
@@ -86,8 +93,8 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
   const size_t rows = old_grid.rows(), cols = old_grid.cols(),
                padded_cols = old_grid.padded_cols();
 
-  const double *__restrict old_ptr = old_grid.data();
-  double *__restrict new_ptr = new_grid.data();
+  const double *RESTRICT old_ptr = old_grid.data();
+  double *RESTRICT new_ptr = new_grid.data();
 
   // handle boundary conditions separately to avoid branching in loop
   for (size_t i = 0; i < rows; ++i) {
