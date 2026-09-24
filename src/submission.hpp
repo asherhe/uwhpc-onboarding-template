@@ -191,11 +191,11 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
          num_cols * sizeof(*old_ptr));
 
 #pragma omp parallel for schedule(static)
-  for (size_t i = max(bbox.row_min, 1ULL); i <= min(bbox.row_max, rows - 2);
-       ++i) {
+  for (size_t i = max(bbox.row_min, size_t{1});
+       i <= min(bbox.row_max, rows - 2); ++i) {
 #pragma omp simd
-    for (size_t j = max(bbox.col_min, 1ULL); j <= min(bbox.col_max, cols - 2);
-         ++j) {
+    for (size_t j = max(bbox.col_min, size_t{1});
+         j <= min(bbox.col_max, cols - 2); ++j) {
       size_t idx = i * stride + j;
       new_ptr[idx] = 0.5 * old_ptr[idx] +
                      0.125 * (old_ptr[idx - stride] + old_ptr[idx + stride] +
