@@ -77,6 +77,8 @@ public:
   Grid &operator=(const Grid &) = delete;
 
   // move operations (used by std::swap that is called in main.cpp)
+  // NOTE: this is asher again from a day later, it turns out the std::swap doesn't even invoke the move operations
+  // because it swaps the POINTERS to Grids :skull:. still good practice to implement this i guess
   Grid(Grid &&other) noexcept : rows_(other.rows_), cols_(other.cols_), stride_(other.stride_), grid_(other.grid_) {
     other.grid_ = nullptr;
     other.rows_ = 0;
@@ -156,15 +158,17 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
     bbox = old_grid.bbox();
   else {
     bbox = old_grid.fit_bbox();
-    // initial pass: reset all values to zero because values outside the
-    // bounding box are skipped. we can count on this working because we know
-    // old_grid and new_grid are swapped every timestep
-    memset(new_ptr, 0, rows * stride * sizeof(*new_ptr));
   }
   bbox.grow(rows, cols);
   new_grid.set_bbox(bbox);
 
   if (bbox.is_empty()) return;
+
+  // initial pass: reset all values to zero because values outside the
+  // bounding box are skipped. we can count on this working because we know
+  // old_grid and new_grid are swapped every timestep
+  // DEBUG: try doing this outside the loop to see if this is the reason why initial test is always faster
+  memset(new_ptr, 0, rows * stride * sizeof(*new_ptr));
 
   // handle boundary conditions separately to avoid branching in loop
   for (size_t i = bbox.row_min; i <= bbox.row_max; ++i) {
