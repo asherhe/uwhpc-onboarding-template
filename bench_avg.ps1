@@ -5,6 +5,9 @@ param(
 # rebuild benchmark executable
 cmake --build --preset benchmark
 
+# validate code correctness
+ctest --preset benchmark --output-on-failure
+
 $run_data = @()
 
 for ($i = 1; $i -le $n_runs; $i++) {
