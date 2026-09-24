@@ -24,8 +24,7 @@ struct BBox {
 
   BBox() : row_min(1), col_min(1), row_max(0), col_max(0) {}
   BBox(size_t row_min, size_t col_min, size_t row_max, size_t col_max)
-      : row_min(row_min), col_min(col_min), row_max(row_max), col_max(col_max) {
-  }
+      : row_min(row_min), col_min(col_min), row_max(row_max), col_max(col_max) {}
 
   // we take advantage of the fact that Grid::fit_bbox's default empty return
   // value has min > max
@@ -67,8 +66,7 @@ public:
       : rows_(rows), cols_(cols),
         // round up to multiple of 8 via bit mask
         stride_((cols + 7) & ~7),
-        grid_(static_cast<double *>(::operator new[](
-            rows * stride_ * sizeof(double), align_val_t{64}))),
+        grid_(static_cast<double *>(::operator new[](rows * stride_ * sizeof(double), align_val_t{64}))),
         has_bbox_(false) {}
 
   ~Grid() { ::operator delete[](grid_, align_val_t(64)); }
@@ -79,9 +77,7 @@ public:
   Grid &operator=(const Grid &) = delete;
 
   // move operations (used by std::swap that is called in main.cpp)
-  Grid(Grid &&other) noexcept
-      : rows_(other.rows_), cols_(other.cols_), stride_(other.stride_),
-        grid_(other.grid_) {
+  Grid(Grid &&other) noexcept : rows_(other.rows_), cols_(other.cols_), stride_(other.stride_), grid_(other.grid_) {
     other.grid_ = nullptr;
     other.rows_ = 0;
     other.cols_ = 0;
@@ -119,12 +115,8 @@ public:
   }
   bool has_bbox() const { return has_bbox_; }
 
-  double &operator()(size_t i, size_t j) noexcept {
-    return grid_[i * stride_ + j];
-  }
-  double operator()(size_t i, size_t j) const noexcept {
-    return grid_[i * stride_ + j];
-  }
+  double &operator()(size_t i, size_t j) noexcept { return grid_[i * stride_ + j]; }
+  double operator()(size_t i, size_t j) const noexcept { return grid_[i * stride_ + j]; }
 
   // determine a bounding box that encloses all nonzero values of the grid
   BBox fit_bbox() const {
@@ -135,8 +127,7 @@ public:
       while (col_min < cols_ && operator()(i, col_min) == 0.0)
         ++col_min;
 
-      if (col_min == cols_)
-        continue;
+      if (col_min == cols_) continue;
 
       size_t col_max = cols_ - 1;
       while (col_max > col_min && operator()(i, col_max) == 0.0)
@@ -155,8 +146,7 @@ public:
 // Apply the five-point stencil over all interior points, copying the boundary
 // values unchanged from old_grid to new_grid. Implement your solution here.
 void apply_stencil(const Grid &old_grid, Grid &new_grid) {
-  const size_t rows = old_grid.rows(), cols = old_grid.cols(),
-               stride = old_grid.stride();
+  const size_t rows = old_grid.rows(), cols = old_grid.cols(), stride = old_grid.stride();
 
   const double *RESTRICT old_ptr = old_grid.data();
   double *RESTRICT new_ptr = new_grid.data();
@@ -174,8 +164,7 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
   bbox.grow(rows, cols);
   new_grid.set_bbox(bbox);
 
-  if (bbox.is_empty())
-    return;
+  if (bbox.is_empty()) return;
 
   // handle boundary conditions separately to avoid branching in loop
   for (size_t i = bbox.row_min; i <= bbox.row_max; ++i) {
@@ -183,23 +172,17 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
     new_ptr[i * stride + cols - 1] = old_ptr[i * stride + cols - 1];
   }
 
-  const size_t last_row = (rows - 1) * stride,
-               num_cols = bbox.col_max - bbox.col_min + 1;
-  memcpy(new_ptr + bbox.col_min, old_ptr + bbox.col_min,
-         num_cols * sizeof(*old_ptr));
-  memcpy(new_ptr + last_row + bbox.col_min, old_ptr + last_row + bbox.col_min,
-         num_cols * sizeof(*old_ptr));
+  const size_t last_row = (rows - 1) * stride, num_cols = bbox.col_max - bbox.col_min + 1;
+  memcpy(new_ptr + bbox.col_min, old_ptr + bbox.col_min, num_cols * sizeof(*old_ptr));
+  memcpy(new_ptr + last_row + bbox.col_min, old_ptr + last_row + bbox.col_min, num_cols * sizeof(*old_ptr));
 
 #pragma omp parallel for schedule(static)
-  for (size_t i = max(bbox.row_min, size_t{1});
-       i <= min(bbox.row_max, rows - 2); ++i) {
+  for (size_t i = max(bbox.row_min, size_t{1}); i <= min(bbox.row_max, rows - 2); ++i) {
 #pragma omp simd
-    for (size_t j = max(bbox.col_min, size_t{1});
-         j <= min(bbox.col_max, cols - 2); ++j) {
+    for (size_t j = max(bbox.col_min, size_t{1}); j <= min(bbox.col_max, cols - 2); ++j) {
       size_t idx = i * stride + j;
       new_ptr[idx] = 0.5 * old_ptr[idx] +
-                     0.125 * (old_ptr[idx - stride] + old_ptr[idx + stride] +
-                              old_ptr[idx - 1] + old_ptr[idx + 1]);
+                     0.125 * (old_ptr[idx - stride] + old_ptr[idx + stride] + old_ptr[idx - 1] + old_ptr[idx + 1]);
     }
   }
 }
