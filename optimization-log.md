@@ -32,4 +32,5 @@ To ensure consistent results, I used Quick CPU with the `High performance` power
 | `43783a1` | Replace std::vector with array | 2.036 |
 | `d85aabe` | Divide main loop into blocks | 2.018 |
 | `b75891a` | Use memcpy in place of row boundary loop | 2.069 |
-| this commit | Cross-platform restrict keyword switching | 2.054 |
+| `298f0a1` | Cross-platform restrict keyword switching | 2.054 |
+| this commit | Apply stencil kernel only to active bounding box | 7.629 |
