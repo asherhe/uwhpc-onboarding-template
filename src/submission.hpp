@@ -62,6 +62,11 @@ private:
   bool has_bbox_;
 
 public:
+  struct GridView {
+    size_t rows, cols, stride;
+    double *grid;
+  };
+
   Grid(size_t rows, size_t cols)
       : rows_(rows), cols_(cols),
         // round up to multiple of 8 via bit mask
@@ -101,12 +106,7 @@ public:
     return *this;
   }
 
-  size_t rows() const { return rows_; }
-  size_t cols() const { return cols_; }
-  size_t stride() const { return stride_; }
-
-  double *data() { return grid_; }
-  const double *data() const { return grid_; }
+  const GridView view() const { return GridView{rows_, cols_, stride_, grid_}; }
 
   const BBox &bbox() const { return bbox_; }
   void set_bbox(const BBox &bbox) {
@@ -150,10 +150,11 @@ public:
 // Apply the five-point stencil over all interior points, copying the boundary
 // values unchanged from old_grid to new_grid. Implement your solution here.
 void apply_stencil(const Grid &old_grid, Grid &new_grid) {
-  const size_t rows = old_grid.rows(), cols = old_grid.cols(), stride = old_grid.stride();
+  const Grid::GridView old_view = old_grid.view(), new_view = new_grid.view();
+  const size_t rows = old_view.rows, cols = old_view.cols, stride = old_view.stride;
 
-  const double *RESTRICT old_ptr = old_grid.data();
-  double *RESTRICT new_ptr = new_grid.data();
+  const double *RESTRICT old_ptr = old_view.grid;
+  double *RESTRICT new_ptr = new_view.grid;
 
   BBox bbox;
   if (old_grid.has_bbox())
