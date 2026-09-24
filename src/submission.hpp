@@ -47,7 +47,7 @@ public:
   }
   Grid &operator=(Grid &&other) noexcept {
     if (this != &other) {
-      ::operator delete[](grid_, align_val_t{64}); // free existing memory
+      ::operator delete[](grid_, std::align_val_t{64}); // Free existing memory
 
       rows_ = other.rows_;
       cols_ = other.cols_;
@@ -100,43 +100,16 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
     new_ptr[last_row + j] = old_ptr[last_row + j];
   }
 
-  // teh execution of the main stencil loop is divided into blocks. this ensures
-  // that most grid retrieval operations can remain in cache for its neighbors.
-  const size_t BLOCK_I = 8, BLOCK_J = 128;
-
-  // i ran these tests on battery power so scores are slightly worse
-  // apparently running on battery has a bigger impact on my solution than the
-  // reference solution.
-  // BI,  BJ | Score
-  // --------+------
-  // 16,  16 | 1.756
-  // 32,  16 | 1.610
-  // 64,  16 | 1.407
-  // 16,  32 | 1.841
-  // 64,  32 | 1.537
-  // 16,  64 | 1.881
-  //  2,  64 | 1.868
-  //  4,  64 | 1.882
-  //  8,  64 | 1.858
-  // 16,  64 | 1.822
-  //  4, 128 | 1.809
-  //  8, 128 | 1.891 (best)
-  // 16, 128 | 1.813
-  // 16, 256 | 1.767
-
-#pragma omp parallel for collapse(2) schedule(static)
-  for (size_t i_blk = 1; i_blk < rows - 1; i_blk += BLOCK_I)
-    for (size_t j_blk = 1; j_blk < cols - 1; j_blk += BLOCK_J)
-      // not collapsed because we want each block to run on one thread
-      for (size_t i = i_blk; i < min(i_blk + BLOCK_I, rows - 1); ++i) {
+#pragma omp parallel for schedule(static)
+  for (size_t i = 1; i < rows - 1; ++i) {
 #pragma omp simd
-        for (size_t j = j_blk; j < min(j_blk + BLOCK_J, cols - 1); ++j) {
-          size_t idx = i * padded_cols + j;
-          // weighted avg provided in problem statement
-          new_ptr[idx] =
-              0.5 * old_ptr[idx] +
-              0.125 * (old_ptr[idx - padded_cols] + old_ptr[idx + padded_cols] +
-                       old_ptr[idx - 1] + old_ptr[idx + 1]);
-        }
-      }
+    for (size_t j = 1; j < cols - 1; ++j) {
+      size_t idx = i * padded_cols + j;
+      // weighted avg provided in problem statement
+      new_ptr[idx] =
+          0.5 * old_ptr[idx] +
+          0.125 * (old_ptr[idx - padded_cols] + old_ptr[idx + padded_cols] +
+                   old_ptr[idx - 1] + old_ptr[idx + 1]);
+    }
+  }
 }
