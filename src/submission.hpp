@@ -91,6 +91,7 @@ private:
   // internal Grid logic, but we are given a fixed signature so this is the next best thing i can do
   ActiveDiffusionDomain domain_;
 
+  // private access to grid view with mutable data pointer
   GridView mutable_view() noexcept { return GridView{rows_, cols_, stride_, grid_}; }
 
 public:
