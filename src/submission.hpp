@@ -15,28 +15,51 @@ using namespace std;
 #define RESTRICT
 #endif
 
-// simple bounding box to track the range in which stencilling calculations are
-// actually necessary. expected to grow by one every time step.
-// this performs especially well with the benchmark test, which uses the
-// kCenterBlock initial condition.
-struct BBox {
-  size_t row_min, col_min, row_max, col_max;
+class Grid;
 
-  BBox() : row_min(1), col_min(1), row_max(0), col_max(0) {}
-  BBox(size_t row_min, size_t col_min, size_t row_max, size_t col_max)
-      : row_min(row_min), col_min(col_min), row_max(row_max), col_max(col_max) {}
+// use a simple bounding box to track the range in which stencilling calculations are actually necessary. this is
+// expected to grow by one every time step, to keep up with the boundary of heat diffusion. this performs especially
+// well with the benchmark test, which uses the kCenterBlock initial condition.
+class ActiveDiffusionDomain {
 
-  // we take advantage of the fact that Grid::fit_bbox's default empty return
-  // value has min > max
-  bool is_empty() { return row_min > row_max || col_min > col_max; }
+public:
+  struct BBox {
+    size_t row_min, col_min, row_max, col_max;
 
-  // expand all borders by 1 activate grid cells that may take on new values
-  void grow(size_t rows, size_t cols) {
-    row_min = row_min > 0 ? row_min - 1 : 0;
-    col_min = col_min > 0 ? col_min - 1 : 0;
-    row_max = row_max < rows - 1 ? row_max + 1 : rows - 1;
-    col_max = col_max < cols - 1 ? col_max + 1 : cols - 1;
-  }
+    BBox() : row_min(1), col_min(1), row_max(0), col_max(0) {}
+    BBox(size_t row_min, size_t col_min, size_t row_max, size_t col_max)
+        : row_min(row_min), col_min(col_min), row_max(row_max), col_max(col_max) {}
+
+    // we take advantage of the fact that Grid::fit_bbox's default empty return
+    // value has min > max
+    bool is_empty() { return row_min > row_max || col_min > col_max; }
+
+    // expand all borders by 1 activate grid cells that may take on new values
+    void grow(size_t rows, size_t cols) {
+      row_min = row_min > 0 ? row_min - 1 : 0;
+      col_min = col_min > 0 ? col_min - 1 : 0;
+      row_max = row_max < rows - 1 ? row_max + 1 : rows - 1;
+      col_max = col_max < cols - 1 ? col_max + 1 : cols - 1;
+    }
+  };
+
+private:
+  // bounding box of active heat spread domain
+  BBox bbox_;
+
+  // whether bbox_ is expected to reflect the current state of the target Grid. external grid modification operations
+  // may touch cells that lie outside the bounding box. we err on the side of caution and force
+  bool is_valid_ = false;
+
+public:
+  void invalidate() noexcept { is_valid_ = false; }
+  bool is_valid() const noexcept { return is_valid_; }
+
+  BBox &bbox() noexcept { return bbox_; }
+  const BBox &bbox() const noexcept { return bbox_; }
+
+  // determine a bounding box that encloses all nonzero values of the given grid data
+  void fit_grid(const Grid &grid);
 };
 
 // Starter Grid for the 2D heat-diffusion problem.
@@ -56,10 +79,10 @@ private:
   // 64-byte aligned allocation for that juicy simd
   double *grid_;
 
-  // bounding box of active heat spread region
-  BBox bbox_;
-  // whether bbox_ has been initialized with values
-  bool has_bbox_;
+  // ActiveDiffusionDomain instance attached to this Grid
+  // if possible, i would have preferred to pass this as another parameter to apply_stencil to separate this from the
+  // internal Grid logic, but we are given a fixed signature so this is the next best thing i can do
+  ActiveDiffusionDomain domain_;
 
 public:
   struct GridView {
@@ -71,8 +94,7 @@ public:
       : rows_(rows), cols_(cols),
         // round up to multiple of 8 via bit mask
         stride_((cols + 7) & ~7),
-        grid_(static_cast<double *>(::operator new[](rows * stride_ * sizeof(double), align_val_t{64}))),
-        has_bbox_(false) {}
+        grid_(static_cast<double *>(::operator new[](rows * stride_ * sizeof(double), align_val_t{64}))) {}
 
   ~Grid() { ::operator delete[](grid_, align_val_t(64)); }
 
@@ -82,11 +104,13 @@ public:
   Grid &operator=(const Grid &) = delete;
 
   // move operations (used by std::swap that is called in main.cpp)
-  Grid(Grid &&other) noexcept : rows_(other.rows_), cols_(other.cols_), stride_(other.stride_), grid_(other.grid_) {
+  Grid(Grid &&other) noexcept
+      : rows_(other.rows_), cols_(other.cols_), stride_(other.stride_), grid_(other.grid_), domain_(other.domain_) {
     other.grid_ = nullptr;
     other.rows_ = 0;
     other.cols_ = 0;
     other.stride_ = 0;
+    other.domain_.invalidate();
   }
   Grid &operator=(Grid &&other) noexcept {
     if (this != &other) {
@@ -97,55 +121,58 @@ public:
       cols_ = other.cols_;
       stride_ = other.stride_;
       grid_ = other.grid_;
+      domain_ = other.domain_;
 
       other.grid_ = nullptr;
       other.rows_ = 0;
       other.cols_ = 0;
       other.stride_ = 0;
+      other.domain_.invalidate();
     }
     return *this;
   }
 
-  const GridView view() const { return GridView{rows_, cols_, stride_, grid_}; }
+  // NOTE: i don't like that Grid::view allows us to bypass the ActiveDiffusionDomain::invalidate logic in operator().
+  // maybe we can make this private and then add apply_stencil as a friend? maybe also still expose a public view that
+  // prohibits modification of grid_?
+  const GridView view() const noexcept { return GridView{rows_, cols_, stride_, grid_}; }
 
-  const BBox &bbox() const { return bbox_; }
-  void set_bbox(const BBox &bbox) {
-    bbox_ = bbox;
-    has_bbox_ = true;
-  }
-  bool has_bbox() const { return has_bbox_; }
+  const ActiveDiffusionDomain &domain() const noexcept { return domain_; }
+  ActiveDiffusionDomain &domain() noexcept { return domain_; }
 
   double &operator()(size_t i, size_t j) noexcept {
-    // invalidate bounding box if there is an attempt to modify it
-    has_bbox_ = false;
+    // invalidate ActiveDiffusionDomain if there is a potential attempt to modify it
+    domain_.invalidate();
     return grid_[i * stride_ + j];
   }
   double operator()(size_t i, size_t j) const noexcept { return grid_[i * stride_ + j]; }
-
-  // determine a bounding box that encloses all nonzero values of the grid
-  BBox fit_bbox() const {
-    BBox bbox{rows_ - 1, cols_ - 1, 0, 0};
-
-    for (size_t i = 0; i < rows_; ++i) {
-      size_t col_min = 0;
-      while (col_min < cols_ && operator()(i, col_min) == 0.0)
-        ++col_min;
-
-      if (col_min == cols_) continue;
-
-      size_t col_max = cols_ - 1;
-      while (col_max > col_min && operator()(i, col_max) == 0.0)
-        --col_max;
-
-      bbox.row_min = min(bbox.row_min, i);
-      bbox.row_max = max(bbox.row_max, i);
-      bbox.col_min = min(bbox.col_min, col_min);
-      bbox.col_max = max(bbox.col_max, col_max);
-    }
-
-    return bbox;
-  }
 };
+
+void ActiveDiffusionDomain::fit_grid(const Grid &grid) {
+  const Grid::GridView view = grid.view();
+  const size_t rows = view.rows, cols = view.cols, stride = view.stride;
+
+  bbox_ = BBox{rows - 1, cols - 1, 0, 0};
+
+  for (size_t i = 0; i < rows; ++i) {
+    size_t col_min = 0;
+    while (col_min < cols && view.grid[i * stride + col_min] == 0.0)
+      ++col_min;
+
+    if (col_min == cols) continue;
+
+    size_t col_max = cols - 1;
+    while (col_max > col_min && view.grid[i * stride + col_max] == 0.0)
+      --col_max;
+
+    bbox_.row_min = min(bbox_.row_min, i);
+    bbox_.row_max = max(bbox_.row_max, i);
+    bbox_.col_min = min(bbox_.col_min, col_min);
+    bbox_.col_max = max(bbox_.col_max, col_max);
+  }
+
+  is_valid_ = true;
+}
 
 // Apply the five-point stencil over all interior points, copying the boundary
 // values unchanged from old_grid to new_grid. Implement your solution here.
@@ -156,18 +183,19 @@ void apply_stencil(const Grid &old_grid, Grid &new_grid) {
   const double *RESTRICT old_ptr = old_view.grid;
   double *RESTRICT new_ptr = new_view.grid;
 
-  BBox bbox;
-  if (old_grid.has_bbox())
-    bbox = old_grid.bbox();
-  else {
-    bbox = old_grid.fit_bbox();
-    // initial pass: reset all values to zero because values outside the
-    // bounding box are skipped. we can count on this working because we know
-    // old_grid and new_grid are swapped every timestep
+  const ActiveDiffusionDomain &old_domain = old_grid.domain();
+  ActiveDiffusionDomain &new_domain = new_grid.domain();
+
+  if (old_domain.is_valid()) {
+    new_domain = old_domain;
+  } else {
+    new_domain.fit_grid(old_grid);
+    // initial pass: reset all values to zero because values outside the bounding box are skipped. we can count on this
+    // working because we know old_grid and new_grid are swapped every timestep. this is a bit of a hack for
     memset(new_ptr, 0, rows * stride * sizeof(*new_ptr));
   }
+  ActiveDiffusionDomain::BBox &bbox = new_domain.bbox();
   bbox.grow(rows, cols);
-  new_grid.set_bbox(bbox);
 
   if (bbox.is_empty()) return;
 
