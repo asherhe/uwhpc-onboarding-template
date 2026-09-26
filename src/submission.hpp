@@ -68,7 +68,14 @@ public:
 // results; it never touches your internal storage. Keep this interface,
 // everything else is yours.
 class Grid {
+  friend void apply_stencil(const Grid &old_grid, Grid &new_grid);
+
 private:
+  struct GridView {
+    size_t rows, cols, stride;
+    double *grid;
+  };
+
   size_t rows_;
   size_t cols_;
   // column count rounded up to multiple of 8. ensures grid_ column sections are
@@ -84,10 +91,12 @@ private:
   // internal Grid logic, but we are given a fixed signature so this is the next best thing i can do
   ActiveDiffusionDomain domain_;
 
+  GridView mutable_view() noexcept { return GridView{rows_, cols_, stride_, grid_}; }
+
 public:
-  struct GridView {
+  struct ConstGridView {
     size_t rows, cols, stride;
-    double *grid;
+    const double *grid;
   };
 
   Grid(size_t rows, size_t cols)
@@ -115,7 +124,7 @@ public:
   Grid &operator=(Grid &&other) noexcept {
     if (this != &other) {
       // free grid memory about to be replaced
-      ::operator delete[](grid_, std::align_val_t{64});
+      ::operator delete[](grid_, align_val_t{64});
 
       rows_ = other.rows_;
       cols_ = other.cols_;
@@ -132,10 +141,9 @@ public:
     return *this;
   }
 
-  // NOTE: i don't like that Grid::view allows us to bypass the ActiveDiffusionDomain::invalidate logic in operator().
-  // maybe we can make this private and then add apply_stencil as a friend? maybe also still expose a public view that
-  // prohibits modification of grid_?
-  const GridView view() const noexcept { return GridView{rows_, cols_, stride_, grid_}; }
+  // the publicly-exposed ConstGridView contains only a read-only reference to the grid data, to enforce the
+  // ActiveDiffusionDomain in operator().
+  ConstGridView view() const noexcept { return ConstGridView{rows_, cols_, stride_, grid_}; }
 
   const ActiveDiffusionDomain &domain() const noexcept { return domain_; }
   ActiveDiffusionDomain &domain() noexcept { return domain_; }
@@ -149,7 +157,7 @@ public:
 };
 
 void ActiveDiffusionDomain::fit_grid(const Grid &grid) {
-  const Grid::GridView view = grid.view();
+  const Grid::ConstGridView view = grid.view();
   const size_t rows = view.rows, cols = view.cols, stride = view.stride;
 
   bbox_ = BBox{rows - 1, cols - 1, 0, 0};
@@ -177,7 +185,9 @@ void ActiveDiffusionDomain::fit_grid(const Grid &grid) {
 // Apply the five-point stencil over all interior points, copying the boundary
 // values unchanged from old_grid to new_grid. Implement your solution here.
 void apply_stencil(const Grid &old_grid, Grid &new_grid) {
-  const Grid::GridView old_view = old_grid.view(), new_view = new_grid.view();
+  const Grid::ConstGridView old_view = old_grid.view();
+  const Grid::GridView new_view = new_grid.mutable_view();
+
   const size_t rows = old_view.rows, cols = old_view.cols, stride = old_view.stride;
 
   const double *RESTRICT old_ptr = old_view.grid;
